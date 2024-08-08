@@ -1,0 +1,218 @@
+/*
+ ============================================================================
+ Name        : linguagemC
+ Author      : Flávio Cintra Cecon
+ Description : Algoritmo para processamento de base CSV para medir desempenho comparando entre uma linguagem interpretada e uma compilada (esse algoritmo). Essa base CSV contém informações a respeito do COVID-19 e o objetivo é ler e retirar informações dela.
+ ============================================================================
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <stdbool.h>
+#include <time.h>
+#include "windows.h"
+#include "psapi.h"
+
+
+
+#define MAX_LINHA 5000
+#define DELIMITADOR ";"
+
+//parametros estaticos para captura do desempenho do CPU
+static ULARGE_INTEGER lastCPU, lastSysCPU, lastUserCPU;
+static int numProcessors;
+static HANDLE self;
+
+//Funções para a captura de desempenho do CPU
+void init(){
+    SYSTEM_INFO sysInfo;
+    FILETIME ftime, fsys, fuser;
+
+    GetSystemInfo(&sysInfo);
+    numProcessors = sysInfo.dwNumberOfProcessors;
+
+    GetSystemTimeAsFileTime(&ftime);
+    memcpy(&lastCPU, &ftime, sizeof(FILETIME));
+
+    self = GetCurrentProcess();
+    GetProcessTimes(self, &ftime, &ftime, &fsys, &fuser);
+    memcpy(&lastSysCPU, &fsys, sizeof(FILETIME));
+    memcpy(&lastUserCPU, &fuser, sizeof(FILETIME));
+}
+
+double getCurrentValue(){
+    FILETIME ftime, fsys, fuser;
+    ULARGE_INTEGER now, sys, user;
+    double percent;
+
+    GetSystemTimeAsFileTime(&ftime);
+    memcpy(&now, &ftime, sizeof(FILETIME));
+
+    GetProcessTimes(self, &ftime, &ftime, &fsys, &fuser);
+    memcpy(&sys, &fsys, sizeof(FILETIME));
+    memcpy(&user, &fuser, sizeof(FILETIME));
+    percent = (sys.QuadPart - lastSysCPU.QuadPart) +
+        (user.QuadPart - lastUserCPU.QuadPart);
+    percent /= (now.QuadPart - lastCPU.QuadPart);
+    percent /= numProcessors;
+    lastCPU = now;
+    lastUserCPU = user;
+    lastSysCPU = sys;
+
+    return percent * 100;
+}
+
+
+//Função criada pra dar split em uma string
+char** str_split(char* a_str, const char a_delim)
+{
+    char** result    = 0;
+    size_t count     = 0;
+    char* tmp        = a_str;
+    char* last_comma = 0;
+    char delim[2];
+    delim[0] = a_delim;
+    delim[1] = 0;
+
+    // Conta quantos elementos vão ser extraidos
+    while (*tmp)
+    {
+        if (a_delim == *tmp)
+        {
+            count++;
+            last_comma = tmp;
+        }
+        tmp++;
+    }
+
+   	//Adiciona espaço para o token final.
+    count += last_comma < (a_str + strlen(a_str) - 1);
+
+    /* Adiciona espaço para terminar a string nula para o script
+       saber onde termina a lista de strings obtida. */
+
+    count++;
+
+    result = malloc(sizeof(char*) * count);
+    if (result)
+    {
+        size_t idx  = 0;
+        char* token = strtok(a_str, delim);
+        while (token)
+        {
+            assert(idx < count);
+            *(result + idx++) = strdup(token);
+            token = strtok(0, delim);
+        }
+//        assert(idx == count - 1);
+        *(result + idx) = 0;
+    }
+
+
+    return result;
+}
+
+int main(void) {
+	clock_t begin = clock();
+
+	//Parâmetros utilizados para o uso da memória
+	MEMORYSTATUSEX memInfo;
+	memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+	GlobalMemoryStatusEx(&memInfo);
+
+	DWORDLONG totalVirtualMem = memInfo.ullTotalPageFile;
+	DWORDLONG totalPhysMem = memInfo.ullTotalPhys;
+
+	PROCESS_MEMORY_COUNTERS_EX pmc;
+
+	//Parâmetros Utilizados para o uso do CPU
+	init();
+
+	FILE* fp = fopen("C:\\Flavio\\Faculdade\\TCC\\HIST_PAINEL_COVIDBR_2021_Parte1_18nov2021.csv", "r");
+	    if (fp == NULL)
+	    {
+	        printf("Falha ao abrir o arquivo");
+	        return(1);
+	    }
+
+	    // variaveis para obter os resultados
+	    char linha[MAX_LINHA];
+	    char *campo;
+	    char *mes1;
+	    char *mes2 = "";
+	    char** tokens;
+	    char** campoData;
+	    int qtdColunas = 0;
+	    int coluna=0;
+	    int linhaAtual = 0;
+	    bool brasil = true;
+	    while (fgets(linha, MAX_LINHA, fp) != NULL)
+	    {
+	    	linhaAtual++;
+	    	if(!brasil && linhaAtual > 3)
+	    	{
+	    		break;
+			}
+			tokens = str_split(linha, ';');
+			if (tokens)
+		    {
+		        int i;
+		        for (i = 0; *(tokens + i); i++)
+		        {
+		            campo = *(tokens + i);
+					if(strcmp(campo, "Brasil") == 0)
+		            {
+		            	brasil = true;
+		            	campoData = str_split(*(tokens + 2), '-');
+		            	mes1 = *(campoData + 1);
+		            	if(strcmp(mes1, mes2) == 1)
+		            	{
+		            		printf("---------------Data: %s/%s/%s--------------\n",*(campoData),*(campoData + 1),*(campoData + 2));
+		            		printf("Casos Acumulados=[%s]\n", *(tokens + 5));
+		            		printf("Casos Novos=[%s]\n", *(tokens + 6));
+		            		printf("Obitos Acumulados=[%s]\n", *(tokens + 7));
+		            		printf("Obitos Novos=[%s]\n", *(tokens + 8));
+		            		printf("-----------------------------------------\n");printf("\n");
+		            		//free(*(tokens + i));
+		            		mes2 = mes1;
+		            		break;
+						}
+
+					}
+		            free(*(tokens + i));
+		        }
+		        free(tokens);
+			}
+
+	    }
+	//calculando o tempo gasto no programa
+	clock_t end = clock();
+	double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+	fclose(fp);
+
+
+
+	//calculando a memoria gasta no programa
+	DWORDLONG virtualMemUsed = memInfo.ullTotalPageFile - memInfo.ullAvailPageFile;
+	SIZE_T physMemUsedByMe = pmc.WorkingSetSize;
+
+	printf("-----------------Relatorio Memoria----------------\n");
+	printf("Total memoria virtual: %d\n",totalVirtualMem);
+	printf("Memoria virtual usada: %d\n",virtualMemUsed);
+	printf("Total memoria Fisica: %d\n",totalPhysMem);
+	printf("Memoria Fisica usada: %d\n",physMemUsedByMe);
+	printf("--------------------------------------------------\n");
+
+
+	printf("-----------------Relatorio CPU--------------------\n");
+	//printa chamando a função para calcular a usabilidade do processador
+	printf("Uso do Processador: %d\n", getCurrentValue());
+	printf("--------------------------------------------------\n");
+
+	printf("Tempo gasto: %f\n", time_spent);
+	//getch();
+	return EXIT_SUCCESS;
+}
