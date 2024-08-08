@@ -1,0 +1,124 @@
+package programas;
+
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+import com.sun.management.OperatingSystemMXBean;
+
+
+/**
+ * @author Flávio Cintra Cecon
+ * 
+ * Projeto de TCC do Centro Universitario Padre Anhieta
+ * para calcular a usabilidade de recursos computacionais
+ * em uma linguagem interpretada (nesse caso JAVA). 
+ * Foi pego como referência uma base de dados CSV 
+ * dos casos do COVID-19 para processamento 
+ * e comparação de parâmetros.
+ * 
+ */
+public class ProcessaBase {
+
+	/**
+	 * @param args
+	 * @throws IOException 
+	 */
+	public static void main(String[] args) throws IOException {
+		
+		//MOMENTO DA CAPTURA DO STATUS DA MEMÓRIA
+		long beforeUsedMem=Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory();
+		long freeMemory=Runtime.getRuntime().freeMemory();
+
+		//MOMENTO DA CAPTURA DO STATUS DO CPU
+		OperatingSystemMXBean ob = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+	    RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
+	    long prevProcessCpuTime = ob.getProcessCpuTime();
+	    int availableProcessors = ob.getAvailableProcessors();
+	    long prevUpTime = runtimeMXBean.getUptime();
+	    double cpuUsage;
+		
+		
+		//LENDO BASE DE DADOS EXTRAIDO DO GOVERNO DO BRASIL REFERENTES A CASOS DO COVID-19
+		String content = new String(Files.readAllBytes(Paths.get("C:\\Flavio\\Faculdade\\TCC\\HIST_PAINEL_COVIDBR_2021_Parte1_18nov2021.csv")));
+		
+		//DECLARAÇÃO DE VARIAVEIS PARA A COMPARAÇÃO DE PARAMETROS E PROCESSAMENTO
+		String[] linhas = content.split("\n");
+		String[] colunas;
+		String casoAcumulado;
+		String casosNovos;
+		String obitosAcumulados;
+		String obitosNovos;
+		String regiao;
+		String data;
+		String[] mes;
+		int mes1 = 0;
+		int mes2 = 0;
+		System.out.println("Linhas Encontradas na Base: "+ linhas.length);
+		
+		//VARRENDO A BASE PARA EXTRAIR AS INFORMAÇÕES DOS CASOS E OBITOS NO INICIO DE CADA MÊS
+		for(int i = 1; i<linhas.length; i++)
+		{
+			colunas = linhas[i].split(";");
+			regiao = colunas[0];
+			data = colunas[7];
+			mes = data.split("-");
+			mes1 = Integer.parseInt(mes[1]);
+			
+			//VERIFICANOD O PONTO DE VIRADA DE CADA MES PARA PODER PEGAR AS INFORMAÇÕES
+				if(regiao.equals("Brasil") && mes1 != mes2)
+				{
+					
+					casoAcumulado = colunas[10];
+					casosNovos = colunas[11];
+					obitosAcumulados = colunas[12];
+					obitosNovos = colunas[13];
+					
+					System.out.println("--------Data: "+data+"--------");
+					System.out.println("Regiao: "+regiao);
+					System.out.println("Casos acumulado até a data: "+casoAcumulado);
+					System.out.println("Casos novos ate a data: "+casosNovos);
+					System.out.println("Óbitos ate a data: "+obitosAcumulados);
+					System.out.println("Novos óbitos ate a data: "+obitosNovos);
+					System.out.println("----------------------------------");
+					
+				}
+				mes2 =  mes1;
+			
+			
+			
+		}
+		
+		
+		
+		//CALCULANDO A USABILIDADE DA MEMÓRIA E PRINTANDO NO CONSOLE
+	    long afterUsedMem=Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory();
+		long actualMemUsed=afterUsedMem-beforeUsedMem;
+		System.out.println("----------RELATÓRIO MEMÓRIA----------");
+		System.out.println("Memória Livre: "+freeMemory);
+		System.out.println("Memoria Antes: "+beforeUsedMem);
+		System.out.println("Memoria Usada: "+afterUsedMem);
+		System.out.println("Memoria Atual: "+actualMemUsed);
+		System.out.println("-------------------------------------");
+		
+		//CALCULANDO A USABILIDADE DO CPU E PRINTANDO NO CONSOLE
+	    ob = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+	    long upTime = runtimeMXBean.getUptime();
+	    long processCpuTime = ob.getProcessCpuTime();
+	    long elapsedCpu = processCpuTime - prevProcessCpuTime;
+	    long elapsedTime = upTime - prevUpTime;
+	    cpuUsage = Math.min(99F, elapsedCpu / (elapsedTime * 10000F * availableProcessors));
+	    System.out.println("----------RELATÓRIO CPU----------");
+	    System.out.println("Tempo de Atividade do CPU: " + upTime);
+	    System.out.println("Tempo de atividade antes: " + prevProcessCpuTime);
+	    System.out.println("Tempo do processador: " + processCpuTime);
+	    System.out.println("Tempo decorrido do CPU: " + elapsedCpu);
+	    System.out.println("Tempo Decorrido Total: " + elapsedTime);
+	    System.out.println("Java CPU: " + cpuUsage);
+	    System.out.println("-------------------------------------");
+
+	    
+	}
+}
